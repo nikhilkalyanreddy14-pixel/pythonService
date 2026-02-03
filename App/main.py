@@ -1,81 +1,37 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from App.model import *
-from App.Services.generate import generate_diagram
-from App.Services.generate import generate_derived_artifact
+from App.Services.generate import generate_diagram, generate_derived_artifact
+from App.handlers import global_exception_handler, global_response_middleware
+from fastapi.exceptions import RequestValidationError
+
 app = FastAPI(title="Archie AI Service")
 
+app.add_exception_handler(Exception, global_exception_handler)
+app.add_exception_handler(RequestValidationError, global_exception_handler)
 
-@app.post("/generate", response_model=ApiResponse)
-def generate(request: GenerateRequest):
-    try:
-        diag_type = request.diagramType.upper()
+@app.middleware("http")
+async def wrap_response(request: Request, call_next):
+    return await global_response_middleware(request, call_next)
+
+@app.post("/generate")
+async def generate(request: GenerateRequest):
+    diagramType = request.diagramType
+    if diagramType in [DiagramType.DATABASE, DiagramType.API]:
+        is_db = (diagramType == DiagramType.DATABASE)
+        base_type = "ERD" if is_db else "Sequence Diagram"
         
-        # Check if it's a "Derived" request
-        is_db = "DATABASE" in diag_type
-        is_api = "API" in diag_type
-
-        if is_db or is_api:
-            # STEP 1: Generate the base UML first for context
-            base_type = "ERD" if is_db else "Sequence Diagram"
-            uml_context = generate_diagram(base_type, request.requirementsText)
-            
-            # STEP 2: Generate the actual Code/Contract using the UML
-            final_output = generate_derived_artifact(request.diagramType, request.requirementsText, uml_context)
-            
-            return ApiResponse(
-                status="SUCCESS",
-                data={
-                    "diagramType": request.diagramType,
-                    "diagramLanguage": "JSON/SQL" if is_db else "OPENAPI",
-                    "diagramCode": final_output,
-                    "isRenderable": False
-                },
-                error=None
-            )
-        
-        # Standard Diagram path
-        diagram_code = generate_diagram(request.diagramType, request.requirementsText)
-        return ApiResponse(
-            status="SUCCESS",
-            data={
-                "diagramType": request.diagramType,
-                "diagramLanguage": "PLANTUML",
-                "diagramCode": diagram_code,
-                "isRenderable": True
-            },
-            error=None
-        )
-
-    except Exception as e:
-        return ApiResponse(status="FAILURE", data=None, error={"message": str(e), "code": "ERR"})
-
-
-
-# @app.post("/generate", response_model=ApiResponse)
-# def generate(request: GenerateRequest):
-#     try:
-#         diagram_code = generate_diagram(
-#             request.diagramType,
-#             request.requirementsText
-#         )
-
-#         return ApiResponse(
-#             status="SUCCESS",
-#             data={
-#                 "diagramType": request.diagramType,
-#                 "diagramLanguage": "PLANTUML",
-#                 "diagramCode": diagram_code,
-#                 "isRenderable": True
-#             },
-#             error=None
-#         )
-
-#     except Exception as e:
-#         return ApiResponse(
-#             status="FAILURE",
-#             data=None,
-#             error={
-#                 "message": "Failed to generate diagram",
-#                 "code": "GENERATION_FAILED"
-#             }
-#         )
+        uml_context = await generate_diagram(base_type, request.requirementsText)
+        final_output = await generate_derived_artifact(diagramType.value, request.requirementsText, uml_context)
+        return {
+            "diagramType": diagramType,
+            "diagramLanguage": "JSON/SQL" if is_db else "OPENAPI",
+            "diagramCode": final_output,
+            "isRenderable": False
+        }
+    diagram_code = await generate_diagram(diagramType.value, request.requirementsText)
+    return {
+        "diagramType": diagramType,
+        "diagramLanguage": "PLANTUML",
+        "diagramCode": diagram_code,
+        "isRenderable": True
+    }
