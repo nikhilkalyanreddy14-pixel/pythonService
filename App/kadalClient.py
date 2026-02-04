@@ -1,6 +1,7 @@
 import os
 import httpx
 import json
+import requests
 from pathlib import Path
 from openai import AsyncAzureOpenAI
 from App.handlers import LLMServiceError
@@ -148,3 +149,59 @@ async def run_gemini(messages):
     except Exception as e:
         # Re-raising with the specific error to find the root cause
         raise LLMServiceError(f"Kadal Gemini Error: {str(e)}")
+    
+async def run_claude(messages):
+    MODEL_ID = "anthropic.claude-3-haiku-20240307-v1:0"
+    # The URL usually ends at /invoke for Bedrock gateways, 
+    # but we'll stick to your URL structure while fixing the logic.
+    url = f"{LLM_GATEWAY_URL}/bedrock/v1/messages/anthropic?modelId={MODEL_ID}"
+    
+    # 1. Properly map messages to Claude format
+    # Claude on Bedrock expects: [{"role": "user", "content": "text"}]
+    # It does NOT allow a 'system' role inside the messages list.
+    claude_messages = []
+    system_prompt = "You are a helpful assistant that generates PlantUML code."
+
+    for msg in messages:
+        if msg["role"] == "system":
+            system_prompt = msg["content"]
+        else:
+            claude_messages.append({
+                "role": msg["role"],
+                "content": msg["content"]
+            })
+
+    headers = {
+        "api-key": LM_KEY, 
+        "Content-Type": "application/json"
+    }
+    
+    body = {
+        "anthropic_version": "bedrock-2023-05-31",
+        "max_tokens": 2048,
+        "messages": claude_messages,
+        "system": system_prompt
+    }
+
+    try:
+        # Use httpx for the async call
+        async with httpx.AsyncClient(verify=False) as client:
+            response = await client.post(url, headers=headers, json=body, timeout=60.0)
+        
+        response.raise_for_status()
+        result = response.json()
+
+        # 2. Robust parsing for the response
+        if 'content' in result and len(result['content']) > 0:
+            answer = result['content'][0]['text']
+            print(f"Claude Response Received\n\n{answer}")
+            return answer
+        else:
+            # If the gateway wraps the response differently, print it to debug
+            print(f"DEBUG CLAUDE RESPONSE: {result}")
+            raise LLMServiceError(f"Unexpected Claude response structure: {result}")
+
+    except httpx.HTTPStatusError as e:
+        raise LLMServiceError(f"Claude API Error ({e.response.status_code}): {e.response.text}")
+    except Exception as e:
+        raise LLMServiceError(f"Kadal Claude Error: {str(e)}")

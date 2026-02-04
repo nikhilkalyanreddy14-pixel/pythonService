@@ -30,7 +30,7 @@ USE_CASE_RULES = """
 2. Wrap use cases in 'package "System Name" { ... }'.
 3. Define actors with 'actor :Actor Name: as Alias'.
 4. Show relationships: Use (Actor) --> (UseCase).
-5. Include/Extend: Use (UC1) ..> (UC2) : <<include>> or <<extend>>.
+5. Very Important, If u find any relation between 2 use cases you must add Include/Extend: Use (UC1) ..> (UC2) : <<include>> or <<extend>>.
 6. For each actor try to give atleast 4 use cases
 """
 

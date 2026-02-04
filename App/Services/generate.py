@@ -1,5 +1,5 @@
 import re
-from App.kadalClient import get_chat_completion, run_gpt, run_gemini
+from App.kadalClient import get_chat_completion, run_gpt, run_gemini, run_claude
 from App.Services.rules import ERD_SPECIFIC_RULES, SEQUENCE_RULES, CLASS_RULES, COMPONENT_RULES, DATABASE_CODE_RULES, API_CONTRACT_RULES, USE_CASE_RULES
 from App.Services.prompts import getPromptMessage, getPromptDerivedArtifact
 
@@ -40,9 +40,7 @@ async def generate_diagram(diagram_type: str, requirements: str) -> str:
     messages = getPromptMessage(diagram_type, extra_context, requirements)
     raw_response = await run_gpt(messages)
     # raw_response = await run_gemini(messages)
+    # raw_response = await run_claude(messages)
     # raw_response = await get_chat_completion(messages)
     actual_response = clean_plantuml_code(raw_response)
     return actual_response
-
-
-
