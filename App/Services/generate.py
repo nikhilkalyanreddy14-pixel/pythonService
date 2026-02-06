@@ -38,8 +38,8 @@ async def generate_diagram(diagram_type: str, requirements: str) -> str:
             break
     
     messages = getPromptMessage(diagram_type, extra_context, requirements)
-    raw_response = await run_gpt(messages)
-    # raw_response = await run_gemini(messages)
+    # raw_response = await run_gpt(messages)
+    raw_response = await run_gemini(messages)
     # raw_response = await run_claude(messages)
     # raw_response = await get_chat_completion(messages)
     actual_response = clean_plantuml_code(raw_response)
